@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import ProductsContainer from '@/components/products/ProductsContainer';
 import React from 'react'
 
