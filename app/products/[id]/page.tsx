@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import FavoriteToggleButton from '@/components/products/FavoriteToggleButton';
 import AddToCart from '@/components/single_product/AddToCart';
 import BreadCrumbs from '@/components/single_product/BreadCrumbs';
