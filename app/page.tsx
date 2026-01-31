@@ -7,6 +7,7 @@ function HomePage() {
   return (
     <>
       <Hero/>
+      {/* suspense doesn't prevent build time execution so the db call occurs at build time no matter the suspense thus the issue during the vercel deployment  */}
       <Suspense fallback={<LoadingContainer/>}>
         <FeaturedProducts/>
       </Suspense>
