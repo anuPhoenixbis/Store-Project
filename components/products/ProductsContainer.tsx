@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';//to prevent the db call from happening in the build time
+
 import { fetchAllProducts } from '@/utils/actions'
 import { BsFillGrid3X3GapFill } from "react-icons/bs";
 import { FaList } from "react-icons/fa";
