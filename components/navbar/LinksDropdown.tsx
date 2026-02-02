@@ -15,8 +15,12 @@ import Link from "next/link";
 import UserIcon from "./UserIcon";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 import SignOutLink from "./SignOutLink";
+import { auth } from "@clerk/nextjs/server";
 
-export default function LinksDropdown() {
+
+export default async function LinksDropdown() {
+  const {userId} = await auth()
+  const isAdminUser = userId === process.env.ADMIN_USER
   return (
     <DropdownMenu>
       {/* menu trigger button */}
@@ -48,18 +52,19 @@ export default function LinksDropdown() {
         </SignedOut>
         <SignedIn>
           {links.map((link)=>{
+            if(link.label === 'dashboard' && !isAdminUser) return null;//not showing the dashboard link if not admin
             return (<Link key={link.href} href={link.href}>
               <DropdownMenuItem className="capitalize w-full">
                 {link.label}
               </DropdownMenuItem>
             </Link>)
           })}
+          <DropdownMenuSeparator/>
+          <DropdownMenuItem variant="destructive">
+            <LogOutIcon />
+            <SignOutLink/>
+          </DropdownMenuItem>
         </SignedIn>
-        <DropdownMenuSeparator/>
-        <DropdownMenuItem variant="destructive">
-          <LogOutIcon />
-          <SignOutLink/>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -1,0 +1,53 @@
+'use client'
+
+import { IoReload } from "react-icons/io5";
+import { MdEdit } from "react-icons/md";
+import { MdDelete } from "react-icons/md";
+import { useFormStatus } from "react-dom"
+import { Button } from "../ui/button"
+import { cn } from "@/lib/utils"
+
+type btnSize = 'default' | 'lg' | 'sm'
+
+type SubmitButtonProps = {
+  className?:string,
+  text?:string,
+  size?:btnSize
+}
+
+export function SubmitButton({
+  className = '',
+  text='submit',
+  size='lg'
+} : SubmitButtonProps) {
+  const {pending} = useFormStatus()
+
+  return (
+    <Button type='submit' disabled={pending} className={cn('capitalize',className)} size={size}>{
+      pending ? <>
+        <IoReload className="mr-2 h-4 w-4 animate-spin"/>
+        Submitting...
+      </>  :text
+    }</Button>
+  )
+}
+
+type actionType = 'edit' | 'delete'
+
+export const IconButton = ({actionType}:{actionType:actionType})=>{
+  const {pending} = useFormStatus()
+  const renderIcon = () =>{
+    switch(actionType){
+      case 'edit':
+        return <MdEdit />
+      case 'delete':
+        return <MdDelete />
+      default:
+        const never:never = actionType;
+        throw new Error(`Invalid action type: ${never}`)
+    }
+  }
+  return <Button type='submit' size='icon' variant='link' className="p-2 cursor-pointer" >
+    {pending ? <IoReload className="animate-spin"/> : renderIcon()}
+  </Button>
+}
