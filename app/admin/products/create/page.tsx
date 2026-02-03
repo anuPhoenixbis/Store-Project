@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Button } from '@/components/ui/button'
 import {faker} from '@faker-js/faker'
 import FormInput from '../../../../components/form/FormInput'
