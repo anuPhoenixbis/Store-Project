@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { SubmitButton } from '@/components/form/Buttons';
 import CheckBoxInput from '@/components/form/CheckBoxInput';
 import FormContainer from '@/components/form/FormContainer';

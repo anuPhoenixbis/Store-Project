@@ -1,11 +1,18 @@
-import { FaHeart, FaRegHeart } from "react-icons/fa";
-import { Button } from "../ui/button";
+export const dynamic = 'force-dynamic';
 
-function FavoriteToggleButton({productId}:{productId:string}) {
+import { auth } from "@clerk/nextjs/server";
+import { CardSignInButton } from "../form/Buttons";
+import { fetchFavoriteId } from "@/utils/actions";
+import FavoriteToggleForm from "./FavoriteToggleForm";
+
+async function FavoriteToggleButton({productId}:{productId:string}) {
+  const userId = (await auth()).userId;
+  // if no user then send to sign in
+  if(!userId) return <CardSignInButton />
+
+  const favoriteId = await fetchFavoriteId({productId})
   return (
-    <Button className='p-2 cursor-pointer btn-soft btn-neutral' size='icon' variant='outline'>
-      <FaHeart/>
-    </Button>
+    <FavoriteToggleForm favoriteId={favoriteId} productId={productId} />
   )
 }
 

@@ -65,7 +65,6 @@ export const fetchSingleProduct = async(productId:string)=>{
     return product
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const createProductAction = async(prevState:any,formData:FormData) : Promise<{message:string}> =>{
     const user = await getAuthUser()
     try {
@@ -178,4 +177,60 @@ export const updateProductImageAction = async(
     } catch (error){
         return renderError(error)
     }
+}
+
+export const fetchFavoriteId = async({productId}:{productId:string})=>{
+    const user = await getAuthUser()
+    const favorite = await db.favorite.findFirst({
+        where:{
+            productId,
+            clerkId: user.id
+        },
+        select:{
+            id:true
+        }
+    })
+    return favorite?.id || null;
+}
+
+export const toggleFavoriteAction = async(prevState:{
+    productId:string,
+    favoriteId:string | null,
+    pathname:string
+}) =>{
+    const user = await getAuthUser()
+    const {productId,favoriteId,pathname} = prevState
+    try {
+        if(favoriteId){
+            await db.favorite.delete({
+                where:{
+                    id: favoriteId
+                }
+            })
+        }else{
+            await db.favorite.create({
+                data:{
+                    productId,
+                    clerkId: user.id
+                }
+            })
+        }
+        revalidatePath(pathname)//moved to the current path 
+        return {message:favoriteId ? 'removed from faves' : 'added to faves'}
+    } catch (error) {
+        return renderError(error)
+    }
+}
+
+export const fetchUserFavorites = async()=>{
+    const user = await getAuthUser()
+    const favorites = await db.favorite.findMany({
+        where:{
+            clerkId: user.id,
+        },
+        include:{
+            product: true,
+        }
+    })
+    return favorites
 }
