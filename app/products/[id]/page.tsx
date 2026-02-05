@@ -1,11 +1,15 @@
 export const dynamic = 'force-dynamic';
 
 import FavoriteToggleButton from '@/components/products/FavoriteToggleButton';
+import ProductReviews from '@/components/reviews/ProductReviews';
+import SubmitReview from '@/components/reviews/SubmitReview';
 import AddToCart from '@/components/single_product/AddToCart';
 import BreadCrumbs from '@/components/single_product/BreadCrumbs';
 import ProductRating from '@/components/single_product/ProductRating';
-import { fetchSingleProduct } from '@/utils/actions'
+import ShareButton from '@/components/single_product/ShareButton';
+import { fetchSingleProduct, findExistingReview } from '@/utils/actions'
 import { formatCurrency } from '@/utils/format';
+import { auth } from '@clerk/nextjs/server';
 import Image from 'next/image';
 import React from 'react'
 
@@ -18,6 +22,9 @@ async function SingleProductPage({params}:PageProps) {
     const product = await fetchSingleProduct(id);
     const {name,image,company,description,price} = product;
     const rupeesAmt = formatCurrency(price);
+    const {userId} = await auth()
+    // if the userId DNE then we won't find whether the review by the userId is given for the productId or not or else vice-versa
+    const reviewDNE = userId && !(await findExistingReview(userId,product.id))
   return (
     <section>
         <BreadCrumbs name={name}/>
@@ -37,7 +44,10 @@ async function SingleProductPage({params}:PageProps) {
             <div>
                 <div className="flex gap-x-8 items-center">
                     <h1 className="capitalize text-3xl font-bold">{name}</h1>
-                    <FavoriteToggleButton productId={id}/>
+                    <div className='flex items-center gap-x-2'>
+                        <FavoriteToggleButton productId={id}/>
+                        <ShareButton name={product.name} productId={id} />
+                    </div>
                 </div>
                 <ProductRating productId={id}/>
                 <h4 className="text-xl mt-2">{company}</h4>
@@ -46,6 +56,9 @@ async function SingleProductPage({params}:PageProps) {
                 <AddToCart productId={id} />
             </div>
         </div>
+        <ProductReviews productId={id}/>
+        {/* renders the submit review button iff user exists and review is previously not given */}
+        {reviewDNE && <SubmitReview productId={id}/>}
     </section>
   )
 }
