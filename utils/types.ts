@@ -1,8 +1,14 @@
+import { Prisma } from "@prisma/client";
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type actionFunction = (
   prevState: any,
   formData: FormData
 ) => Promise<{ message: string }>;
+
+export type CartItemWithProduct = Prisma.CartItemGetPayload<{
+  include:{product:true}
+}>
 
 export type CartItem = {
   productId: string;
