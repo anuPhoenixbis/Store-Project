@@ -1,9 +1,10 @@
 import { LuShoppingCart } from "react-icons/lu";
 import { Button } from "../ui/button";
 import Link from "next/link";
+import { fetchCartItems } from "@/utils/actions";
 
 async function CartButton() {
-  const numItemsInCart = 5
+  const numItemsInCart = await fetchCartItems()
   return (
     <Button asChild size="icon" className="indicator">
       <Link href='/cart'>

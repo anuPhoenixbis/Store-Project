@@ -2,11 +2,12 @@
 'use server'
 
 import db from '@/utils/db'
-import { currentUser } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { imageSchema, productSchema, reviewSchema, validateWithZodSchema } from './schema'
 import { deleteImage, uploadImage } from './supabase'
 import { revalidatePath } from 'next/cache'
+import { Cart, CartItem, Product } from '@prisma/client'
 
 const getAuthUser = async() =>{
     const user = await currentUser()
@@ -25,6 +26,12 @@ const renderError = (error:unknown):{message:string} =>{
     return{
         message: error instanceof Error ? error.message : 'an error occurred'
     }
+}
+
+export type CartWithItems = Cart & {
+  cartItems: (CartItem & {
+    product: Product
+  })[]
 }
 
 export const fetchFeaturedProducts = async()=>{
@@ -324,4 +331,256 @@ export const findExistingReview = async(userId:string,productId:string)=>{
         }
     })
     //if this returns true then we can't give a review to the product
+}
+
+
+export const fetchCartItems = async()=>{
+    const {userId} = await auth()
+    const cart = await db.cart.findFirst({
+        where:{
+            clerkId : userId ?? ''
+        },
+        select:{
+            numItemsInCart:true//just passing the no of cart items 
+        }
+    })
+    // 0 happens when there is no user (not logged in) yet
+    return cart?.numItemsInCart || 0;
+}
+// just to check if the provided productId fetches an actual product from the db or not
+
+const fetchProduct = async (productId: string) => {
+  const product = await db.product.findUnique({
+    where: {
+      id: productId,
+    },
+  });
+
+  if (!product) {
+    throw new Error('Product not found');
+  }
+  return product;
+};
+const includeProductClause = {
+  cartItems: {
+    include: {
+      product: true,
+    },
+  },
+};
+
+/*
+The critical function: fetchOrCreateCart
+
+What it did:
+
+1.Found or created a cart
+2.Returned it with cartItems included
+3.Returned cached totals without recomputing them
+
+So it returned an object that looked complete… but wasn’t.
+
+#This is the key failure: A function returned an object that looked authoritative, but wasn’t.
+
+#Derived data must never be trusted unless it was just computed or transactionally guaranteed.
+
+If a value can be recomputed from other rows:
+
+1.It is not authoritative
+2.It is not safe to trust
+3.It must be explicitly refreshed
+
+This rule applies to:
+
+1.carts
+2.totals
+3.counts
+4.balances
+5.analytics
+6.inventory
+Every system.
+
+| Function             | Role             |
+| -------------------- | ---------------- |
+| `fetchOrCreateCart`  | Existence only   |
+| `updateCartTotals`   | Mutation only    |
+| `fetchCartWithItems` | Read-only for UI |
+
+*/
+
+// previously this function was fetching and values thinking the derived values can lead to current updated values from db but instead it called the stale cache values again
+// it never showed up in the cart
+// make this a fetch function only from the db 
+// setting up new update and fetch updated cart functions as well
+// to update the UI 
+// we might happen to remove the last item in the cart then we must empty the entire cart or we just remove a singular item from the cart
+export const fetchOrCreateCart = async ({
+  userId,
+  errorOnFailure = false,
+}: {
+  userId: string;
+  errorOnFailure?: boolean;
+}) => {
+  let cart = await db.cart.findFirst({
+    where: {
+      clerkId: userId,
+    }
+  });
+
+  if (!cart && errorOnFailure) {
+    throw new Error('Cart not found');
+  }
+
+  if (!cart) {
+    cart = await db.cart.create({
+      data: {
+        clerkId: userId,
+      }
+    });
+  }
+
+  return cart;
+};
+
+// fetch the updated cart items and values
+export const fetchCartWithItems = async(
+    cartId:string,
+): Promise<CartWithItems> =>{
+    const cart = await db.cart.findUnique({
+        where: {id:cartId},
+        include: includeProductClause
+    })
+    if(!cart) throw new Error('Cart not found')
+    return cart
+}
+
+// function to mutate totals or cart values
+export const updateCartTotals = async(cartId: string)=>{
+    const cartItems = await db.cartItem.findMany({
+        where: {cartId},
+        include: {product:true}
+    })
+
+    let numItemsInCart = 0;
+    let cartTotal = 0;
+
+    for(const item of cartItems){
+        numItemsInCart+=item.amount
+        cartTotal += item.amount * item.product.price
+    }
+
+    const cart = await db.cart.findUnique({
+        where: {id: cartId}
+    })
+    if(!cart) return 
+
+    const tax = cart.taxRate * cartTotal
+    const shipping = cartTotal ? cart.shipping : 0
+    const orderTotal = cartTotal + tax + shipping
+
+    await db.cart.update({
+        where:{ id: cartId },
+        data:{
+            numItemsInCart,
+            cartTotal,
+            tax,
+            orderTotal
+        }
+    })
+}
+
+// once the cart is created we gotta update the cart with the provided cartId or create a new cartItem using the cartId
+
+const updateOrCreateCartItem = async ({
+  productId,
+  cartId,
+  amount,
+}: {
+  productId: string;
+  cartId: string;
+  amount: number;
+}) => {
+  let cartItem = await db.cartItem.findFirst({
+    where: {
+      productId,
+      cartId,
+    },
+  });
+
+  if (cartItem) {
+    cartItem = await db.cartItem.update({
+      where: {
+        id: cartItem.id,
+      },
+      data: {
+        amount: cartItem.amount + amount,
+      },
+    });
+  } else {
+    cartItem = await db.cartItem.create({
+      data: { amount, productId, cartId },
+    });
+  }
+};
+
+// update the cart values with the updated values
+
+// export const updateCart = async (cart: Cart) => {
+//   const cartItems = await db.cartItem.findMany({
+//     where: {
+//       cartId: cart.id,
+//     },
+//     include: {
+//       product: true, // Include the related product
+//     },
+//   });
+
+//   let numItemsInCart = 0;
+//   let cartTotal = 0;
+
+//   for (const item of cartItems) {
+//     numItemsInCart += item.amount;
+//     cartTotal += item.amount * item.product.price;
+//   }
+//   const tax = cart.taxRate * cartTotal;
+//   const shipping = cartTotal ? cart.shipping : 0;
+//   const orderTotal = cartTotal + tax + shipping;
+
+//   await db.cart.update({
+//     where: {
+//       id: cart.id,
+//     },
+//     data: {
+//       numItemsInCart,
+//       cartTotal,
+//       tax,
+//       orderTotal,
+//     },
+//   });
+// };
+
+export const addToCartAction = async (prevState: any, formData: FormData) => {
+  const user = await getAuthUser();
+  try {
+    const productId = formData.get('productId') as string;
+    const amount = Number(formData.get('amount'));
+    await fetchProduct(productId);
+    const cart = await fetchOrCreateCart({ userId: user.id });
+    // await updateOrCreateCartItem({ productId, cartId: cart.id, amount });
+    await updateOrCreateCartItem({
+        productId,
+        cartId: cart.id,
+        amount
+    })
+    await updateCartTotals(cart.id);
+  } catch (error) {
+    return renderError(error);
+  }
+  redirect('/cart');
+};
+
+export const removeCartItemAction = async()=>{}
+export const updateCartItemAction = async()=>{}
+export const createOrderAction = async(prevState:any,formData:FormData)=>{
+    return {message:'order created'}
 }

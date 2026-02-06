@@ -68,3 +68,11 @@ export const CardSubmitButton = ({isFavorite}:{isFavorite:boolean}) =>{
     {pending ? <IoReload className="animate-spin"/> : isFavorite ? <FaHeart/> : <FaRegHeart/>}
   </Button>
 }
+
+export const ProductSignInButton = () =>{
+  return <SignInButton mode='redirect'>
+    <Button type='button' className="mt-8 capitalize">
+      sign in
+    </Button>
+  </SignInButton>
+}
