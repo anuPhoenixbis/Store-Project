@@ -450,6 +450,7 @@ export const fetchCartWithItems = async(
         where: {id:cartId},
         include: includeProductClause
     })
+    
     if(!cart) throw new Error('Cart not found')
     return cart
 }
@@ -579,8 +580,59 @@ export const addToCartAction = async (prevState: any, formData: FormData) => {
   redirect('/cart');
 };
 
-export const removeCartItemAction = async()=>{}
-export const updateCartItemAction = async()=>{}
+export const removeCartItemAction = async(
+    prevState:any,
+    formData:FormData
+)=>{
+    const user = await getAuthUser()
+    try {
+        const cartItemId = formData.get('id') as string
+        const cart = await fetchOrCreateCart({
+            userId: user.id,
+            errorOnFailure:true
+        })
+        await db.cartItem.delete({
+            where:{
+                id:cartItemId,
+                cartId: cart.id
+            }
+        })
+        await updateCartTotals(cart.id)
+        revalidatePath('/cart')
+        return {message:'Item removed from cart'}
+    } catch (error) {
+        return renderError(error)
+    }
+}
+
+export const updateCartItemAction = async({
+    amount,
+    cartItemId,
+}:{
+    amount:number,
+    cartItemId:string,
+})=>{
+    const user = await getAuthUser()
+    try {
+        const cart = await fetchOrCreateCart({userId:user.id,errorOnFailure:true})
+        await db.cartItem.update({
+            where:{
+                id:cartItemId,
+                cartId:cart.id,
+            },
+            data:{
+                amount,
+            }
+        })
+        await updateCartTotals(cart.id)
+        revalidatePath('/cart')
+        return {message:'cart updated'}
+    } catch (error) {
+        return renderError(error)
+    }
+}
+
+
 export const createOrderAction = async(prevState:any,formData:FormData)=>{
     return {message:'order created'}
 }

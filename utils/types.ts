@@ -6,6 +6,8 @@ export type actionFunction = (
   formData: FormData
 ) => Promise<{ message: string }>;
 
+// while displaying the cartItems we also require the info for their respective products
+// thus, we require this type
 export type CartItemWithProduct = Prisma.CartItemGetPayload<{
   include:{product:true}
 }>
