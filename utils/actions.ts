@@ -2,7 +2,7 @@
 'use server'
 
 import db from '@/utils/db'
-import { auth, currentUser } from '@clerk/nextjs/server'
+import { auth, currentUser, getAuth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { imageSchema, productSchema, reviewSchema, validateWithZodSchema } from './schema'
 import { deleteImage, uploadImage } from './supabase'
@@ -634,5 +634,64 @@ export const updateCartItemAction = async({
 
 
 export const createOrderAction = async(prevState:any,formData:FormData)=>{
-    return {message:'order created'}
+    const user = await getAuthUser()
+    try {
+        const baseCart = await fetchOrCreateCart({
+            userId:user.id,
+            errorOnFailure:true,
+        })
+        await updateCartTotals(baseCart.id)//updating the totals' values
+        const cart = await fetchCartWithItems(baseCart.id)//fetch the updated values and create the order of it
+        // after the order is created remove the cart items from the db 
+        // professional grade is we are performing 2 tasks here create the order and delete from cart thus,
+        // we should wrap it in a transaction so either its both or nothing
+        await db.$transaction(async(tx)=>{
+            await tx.order.create({
+                data:{
+                    clerkId:user.id,
+                    products:cart.numItemsInCart,
+                    orderTotal:cart.orderTotal,
+                    tax:cart.tax,
+                    shipping:cart.shipping,
+                    email:user.emailAddresses[0].emailAddress
+                }
+            })
+            // thus, incase the transaction fails somehow we don't loose the cartItems and also the order isn't placed
+            await tx.cart.delete({
+                where:{
+                    id:cart.id
+                }
+            })
+        })
+    } catch (error) {
+        return renderError(error)
+    }
+    redirect('/orders')
+}
+
+export const fetchUserOrders = async() =>{
+    const user = await getAuthUser()
+    const orders = db.order.findMany({
+        where:{
+            clerkId:user.id,
+            isPaid:true,
+        },
+        orderBy:{
+            createdAt:'asc'
+        }
+    })
+    return orders
+}
+
+export const fetchAdminOrders = async () =>{
+    await getAdminUser()
+    const orders =await db.order.findMany({
+        where:{
+            isPaid: true,
+        },
+        orderBy:{
+            createdAt: 'desc'
+        }
+    })
+    return orders
 }
